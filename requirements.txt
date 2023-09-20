@@ -1,0 +1,6 @@
+pymongo~=4.5.0
+Faker~=19.6.2
+fastapi~=0.103.1
+pydantic~=2.3.0
+motor~=3.3.1
+python-dotenv~=1.0.0
