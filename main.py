@@ -12,9 +12,10 @@ import secrets
 from passlib.context import CryptContext
 from jose import JWTError, jwt
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-from typing import Annotated
+from datetime import datetime, timedelta
 
 Secret_key = secrets.token_hex(32)
+ACCESS_TOKEN_EXPIRE_TIME = 15
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -90,7 +91,12 @@ async def get_students_of_course(course: str):
     return {"result": data}
 
 
-def create_access_token(data: dict):
+def create_access_token(data: dict, expires_delta: timedelta | None = None):
+    if expires_delta:
+        expire = datetime.utcnow() + expires_delta
+    else:
+        expire = datetime.utcnow() + timedelta(minutes=10)
+    data.update({"exp": expire})
     encoded_token = jwt.encode(data, Secret_key)
     return encoded_token
 
@@ -126,7 +132,8 @@ async def teacher_login(
     if teacher is None or form_data.password != teacher["password"]:
         raise HTTPException(status_code=401, detail="teacher_id or password is incorrect")
 
-    access_token = create_access_token(data={"sub": str(teacher.get("_id"))})
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_TIME)
+    access_token = create_access_token(data={"sub": str(teacher.get("_id"))}, expires_delta=access_token_expires)
     return {"access_token": access_token, "token_type": "bearer"}
 
 
@@ -137,15 +144,15 @@ async def submit_mark(student_id: int, marks: int, active_teacher=Depends(get_ac
 
     if teacher_has_authority is None:
         raise HTTPException(status_code=403, detail="You dont have the authority to mark this student")
-    result = await db.registered_student_col.find_one_and_update({"_id": student_id}, {"$set": {"marks": marks}})
+    await db.registered_student_col.find_one_and_update({"_id": student_id}, {"$set": {"marks": marks}})
     return dict(message="marks added successfully")
 
 
 @app.get("/students_data")
-async def get_student_data(student_id: int):
-    student_data = await db.registered_student_col.find_one({"_id": student_id}, {"student_name": 1, "marks": 1})
-    return {**student_data}
-
-
-if __name__ == '__main__':
-    uvicorn.run("main:app")
+async def get_student_data(teacher_id=Depends(get_active_teacher)):
+    students = await db.students_section_col.find_one({"teacher_id": int(teacher_id)}, {"students": 1, "_id": 0})
+    enrollment_list = students.get("students")
+    students_data = []
+    async for data in db.registered_student_col.find({"_id": {"$in": enrollment_list}}, {"student_name": 1, "marks": 1, }):
+        students_data.append(data)
+    return {"student_data": students_data}
