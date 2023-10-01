@@ -8,6 +8,7 @@ enrollment_counter_col = database.get_collection("enrollment_counter")
 registered_student_col = database.get_collection("registered_students_data")
 students_section_col = database.get_collection("students_sections")
 teachers_col = database.get_collection("teacher_collection")
+transaction_col = database.get_collection("transaction_collection")
 
 # teachers_col.drop()
 

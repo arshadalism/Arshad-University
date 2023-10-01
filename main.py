@@ -1,3 +1,5 @@
+import random
+
 import aiofiles
 from pydantic import BaseModel
 import schema
@@ -36,7 +38,6 @@ async def upload2(*, file: UploadFile = File(...), enrollment_no: int, document_
     file_data = await file.read()
     async with aiofiles.open(UPLOAD_FILE_PATH + f"/{file_id}", "wb") as file:
         await file.write(file_data)
-
     await db.add_document(enrollment_no, document_type, file_id)
     return {"success": True}
 
@@ -82,7 +83,13 @@ async def registration(applicant_detail: schema.RegistrationBody):
 @app.get("/student_detail/{enrollment}")
 async def get_detail(enrollment: int):
     doc = await db.registered_student_col.find_one({"_id": enrollment})
-    return {"doc": doc}
+    if doc is None:
+        HTTPException(status_code=404, detail="Student not found.")
+        return
+    transaction_data = await db.transaction_col.find({"student_id": enrollment}).to_list(length=100)
+    await db.registered_student_col.update_one({"_id": enrollment}, {"$set": {"transaction_record": transaction_data}})
+    data = await db.registered_student_col.find_one({"_id": enrollment})
+    return {"data": data}
 
 
 @app.get("/all_students/{course}")
@@ -139,10 +146,9 @@ async def teacher_login(
 
 @app.post("/submit_mark")
 async def submit_mark(student_id: int, marks: int, active_teacher=Depends(get_active_teacher)):
-    teacher_has_authority = await db.students_section_col.find_one(
-        {"teacher_id": int(active_teacher), "students": {"$in": [student_id]}})
-
-    if teacher_has_authority is None:
+    teacher_has_authority = await db.students_section_col.find(
+        {"teacher_id": int(active_teacher), "students": {"$in": [student_id]}}).limit(1).to_list(length=1)
+    if not teacher_has_authority:
         raise HTTPException(status_code=403, detail="You dont have the authority to mark this student")
     await db.registered_student_col.find_one_and_update({"_id": student_id}, {"$set": {"marks": marks}})
     return dict(message="marks added successfully")
@@ -150,9 +156,36 @@ async def submit_mark(student_id: int, marks: int, active_teacher=Depends(get_ac
 
 @app.get("/students_data")
 async def get_student_data(teacher_id=Depends(get_active_teacher)):
-    students = await db.students_section_col.find_one({"teacher_id": int(teacher_id)}, {"students": 1, "_id": 0})
-    enrollment_list = students.get("students")
-    students_data = []
-    async for data in db.registered_student_col.find({"_id": {"$in": enrollment_list}}, {"student_name": 1, "marks": 1, }):
-        students_data.append(data)
+    students = await db.students_section_col.find({"teacher_id": int(teacher_id)}, {"students": 1, "_id": 0}).limit(
+        1).to_list(1)
+    enrollment_list = students[0].get("students")
+    students_data = await db.registered_student_col.find({"_id": {"$in": enrollment_list}},
+                                                         {"student_name": 1, "marks": 1, }).to_list(length=1000)
     return {"student_data": students_data}
+
+
+@app.post("/fee_submit")
+async def fee_submit(student_id: int, amount: int):
+    if 1 <= amount <= 90000:
+        fee: int = 90000
+        result = await db.registered_student_col.find_one({"_id": student_id})
+        if result:
+            current_fee_deposited = result.get("fee_deposited", 0)
+            if current_fee_deposited + amount <= fee:
+                new_fee_deposited = current_fee_deposited + amount
+                due_fees = fee - new_fee_deposited
+                await db.registered_student_col.update_one({"_id": student_id},{"$set": {"fee": fee, "fee_deposited": new_fee_deposited, "due fees": due_fees}})
+                await fee_transaction(student_id, amount)
+                return {"result": "Deposited successfully"}
+            else:
+                raise HTTPException(status_code=400, detail="Total deposition exceed the fee")
+        else:
+            raise HTTPException(status_code=404, detail="No student found.")
+    else:
+        raise HTTPException(status_code=400, detail="fee should be in the 1 to 90000 range.")
+
+
+async def fee_transaction(student_id: int, amount: int):
+    data = {"_id": random.randint(1000000, 9999999), "student_id": student_id, "amount": amount, "time": datetime.now()}
+    await db.transaction_col.insert_one(data)
+    return
