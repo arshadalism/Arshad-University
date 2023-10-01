@@ -1,5 +1,4 @@
 import random
-
 import aiofiles
 from pydantic import BaseModel
 import schema
@@ -81,15 +80,13 @@ async def registration(applicant_detail: schema.RegistrationBody):
 
 
 @app.get("/student_detail/{enrollment}")
-async def get_detail(enrollment: int):
-    doc = await db.registered_student_col.find_one({"_id": enrollment})
-    if doc is None:
-        HTTPException(status_code=404, detail="Student not found.")
-        return
-    transaction_data = await db.transaction_col.find({"student_id": enrollment}).to_list(length=100)
-    await db.registered_student_col.update_one({"_id": enrollment}, {"$set": {"transaction_record": transaction_data}})
-    data = await db.registered_student_col.find_one({"_id": enrollment})
-    return {"data": data}
+async def get_student_detail(enrollment: int):
+    student_data = await db.registered_student_col.find_one({"_id": enrollment})
+    if student_data is None:
+        raise HTTPException(status_code=404, detail="Student not found.")
+    transaction_data = await db.transaction_col.find({"student_id": enrollment}, projection={"student_id": 0}).to_list(length=1000)
+    student_data["transaction_record"] = transaction_data
+    return {"student_data": student_data}
 
 
 @app.get("/all_students/{course}")
@@ -174,7 +171,7 @@ async def fee_submit(student_id: int, amount: int):
             if current_fee_deposited + amount <= fee:
                 new_fee_deposited = current_fee_deposited + amount
                 due_fees = fee - new_fee_deposited
-                await db.registered_student_col.update_one({"_id": student_id},{"$set": {"fee": fee, "fee_deposited": new_fee_deposited, "due fees": due_fees}})
+                await db.registered_student_col.update_one({"_id": student_id}, {"$set": {"fee": fee, "fee_deposited": new_fee_deposited, "due_fees": due_fees}})
                 await fee_transaction(student_id, amount)
                 return {"result": "Deposited successfully"}
             else:
