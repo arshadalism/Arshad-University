@@ -17,6 +17,7 @@ from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from datetime import datetime, timedelta
 from reportlab.pdfgen import canvas
 from reportlab.lib.utils import ImageReader
+import gradio
 
 Secret_key = secrets.token_hex(32)
 ACCESS_TOKEN_EXPIRE_TIME = 15
@@ -153,7 +154,7 @@ async def submit_mark(student_id: int, marks: int, active_teacher=Depends(get_ac
 
 
 @app.get("/students_data")
-async def get_student_data(teacher_id=Depends(get_active_teacher)):
+async def teacher_gets_student_data(teacher_id=Depends(get_active_teacher)):
     students = await db.students_section_col.find({"teacher_id": int(teacher_id)}, {"students": 1, "_id": 0}).limit(
         1).to_list(1)
     enrollment_list = students[0].get("students")
@@ -165,7 +166,9 @@ async def get_student_data(teacher_id=Depends(get_active_teacher)):
 @app.get("/Download_transaction_receipt")
 async def pdf_generator_function(transaction_id: int):
     document = await db.transaction_col.find_one({"_id": transaction_id})
-    student_data = await db.registered_student_col.find_one({"_id": document.get("student_id")}, projection={"_id": 0, "student_name":1, "course":1, "branch":1})
+    student_data = await db.registered_student_col.find_one({"_id": document.get("student_id")},
+                                                            projection={"_id": 0, "student_name": 1, "course": 1,
+                                                                        "branch": 1})
     if not document:
         raise HTTPException(status_code=404, detail="Document not found.")
 
@@ -285,3 +288,20 @@ async def fee_transaction(student_id: int, amount: int):
     data = {"_id": random.randint(1000000, 9999999), "student_id": student_id, "amount": amount, "time": datetime.now()}
     await db.transaction_col.insert_one(data)
     return data["_id"]
+
+
+fee_submit_interface = gradio.Interface(
+            fn=fee_submit,
+            inputs=[gradio.Number(label="Enter the enrollment no"), gradio.Number(label="Enter the amount")],
+            outputs=gradio.Json(),
+            title="Fee Submit"
+        )
+
+student_detail_interface = gradio.Interface(
+            fn=get_student_detail,
+            inputs=gradio.Number(label="Enter the enrollment"),
+            outputs=gradio.Json(),
+            title="Get student detail"
+        )
+
+gradio.TabbedInterface([fee_submit_interface, student_detail_interface]).launch()
