@@ -9,6 +9,7 @@ registered_student_col = database.get_collection("registered_students_data")
 students_section_col = database.get_collection("students_sections")
 teachers_col = database.get_collection("teacher_collection")
 transaction_col = database.get_collection("transaction_collection")
+attendance_col = database.get_collection("attendance_collection")
 
 # teachers_col.drop()
 
@@ -111,5 +112,3 @@ async def register_student(applicant_detail: schema.RegistrationBody):
 
     await registered_student_col.insert_one(registration_data)
     return enrollment_no
-
-

@@ -1,3 +1,4 @@
+from datetime import datetime
 from pydantic import BaseModel, field_validator, Field
 from typing import Literal
 
@@ -18,6 +19,18 @@ class Teacher_registration(BaseModel):
     branch: Literal["Computer Science", "Electrical", "Mechanical", "Civil", "BCA", "MCA", "BBA", "MBA"]
 
 
+class Teacher_login(BaseModel):
+    username: int
+    password: int
+
+
+class Student_attendance_detail(BaseModel):
+    student_id: int
+    date: str
+    attendance_status: str
+    token: str
+
+
 class RegistrationBody(BaseModel):
     student_name: str
     age: int = Field(ge=18)
@@ -33,20 +46,20 @@ class RegistrationBody(BaseModel):
     country: str
     board: str
 
-    # @field_validator('phone')
-    # def phone_validator(cls, value):
-    #     if len(str(value)) != 10:
-    #         raise ValueError("phone number must be of 10 digits!")
-    #     return value
-    #
-    # @field_validator('aadhar')
-    # def aadhar_validator(cls, value):
-    #     if len(str(value)) != 12:
-    #         raise ValueError("aadhar number must be of 12 digits!")
-    #     return value
-    #
-    # @field_validator('pincode')
-    # def pincode_validator(cls, value):
-    #     if len(str(value)) != 6:
-    #         raise ValueError("pincode number must be of 6 digits!")
-    #     return value
+    @field_validator('phone')
+    def phone_validator(cls, value):
+        if len(str(value)) != 10:
+            raise ValueError("phone number must be of 10 digits!")
+        return value
+
+    @field_validator('aadhar')
+    def aadhar_validator(cls, value):
+        if len(str(value)) != 12:
+            raise ValueError("aadhar number must be of 12 digits!")
+        return value
+
+    @field_validator('pincode')
+    def pincode_validator(cls, value):
+        if len(str(value)) != 6:
+            raise ValueError("pincode number must be of 6 digits!")
+        return value
