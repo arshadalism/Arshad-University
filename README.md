@@ -12,4 +12,4 @@ Solution:-
 Impact:-
 1)Enhanced my Python programming knowledge by doing this project.
 2)learned how to collect data by using the Faker library.
-3)Used gradio for U.
+3)Used gradio for UI
